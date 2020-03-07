@@ -23,7 +23,7 @@ def train_player():
     # Treniraj # Zug
     #stdout.disable()
 
-    games = 10000
+    games = 1#10000, one game means up to 1001 Points!!!
     last = 100
     wins = list()
 

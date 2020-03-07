@@ -33,9 +33,97 @@ Some docu in interfaces.py
   + The one who reaches 1001 points
 
 # TODO
-* translate slowenisch/krotatisch to english
 * wo wird das Netzwerk abgespeichert?
+* understand policy
 
+# DONE
+* translate slowenisch/krotatisch to english
+* Learning Procedure
+
+
+# Learning Procedure
+* train.py
+  + game/play.py:  class: *game*  `play()`
+    + ```SHARING PHASE```
+      + game/play.py class *hand*  `play()`
+        + ```Bidding PHASE```
+        + ```Declaring PHASE```
+        + ```Playing Phase ```: `self.currentPlayer.playCard(...)`
+          + players/PlayerRL/player.py class *PlayerRL* `playCard`
+          + `action_idx, log_action_prob = self.playingPolicy(state, trumpIndex, bidderIndex, legalCrds)`
+          +  players/PlayerRL/policy.py class *PlayingPolicy* `forward`
+        +  ```End of one Round (4 Player played their card)```
+        + `notifyTrick` -> assign rewards of this round and append log_action_prob
+    + Points of one Game are returned
+    + `notifyHand` the policy is updated with 8 rewards and 8 log_action_prob
+  + A new game is started until 1001 Points are reached!
+
+# Playing Policy:
+* It is used:  self.playingPolicy(playingState, trumpIndex, bidderIndex, legalCards)
+* playingState 4x3x32 (Player x States x Cards)
+  + States:
+    * AVAILABLE   (cards in hand of this specific player)
+    * UNAVAILABLE (already played cards of this player!)
+    * TABLE       (cards on the table in general)
+* TrumpIndex: Herz, Pik, Tref, Karo
+* bidderIndex (active Player or bidder?!!)
+* legalCards possible cards that can be played!
+* Network out shape: torch.Size([1, 104]):
+```
+out = torch.cat((
+    out418.view(out418.size(0), -1), # convert from 1,8,1,8 to 1x64 (AVAILABLE, UNAVAILABLE)
+    out881.view(out881.size(0), -1), #1x32 (TABLE)
+    bidder.view(bidder.size(0), -1), #1x4  (Player is bidder)
+    trump.view(trump.size(0), -1)    #1x4  (Trump card)
+), dim=1) # -> (batch_size, ?)
+```
+
+# Update playing Policy
+* at End of one Game: in game\play.py
+* ``` playerA.notifyHand(newPointsA, newPointsB)```
+* goes to `self.playingPolicy.updatePolicy()`
+* PlayerRL policy ->def updatePolicy(self): Line 249,
+* The policy for all 8 moves is updated!
+* The normalizedReward [-1, 1] for these 8 moves and the logprob is used for that!
+
+
+
+
+* Index and Card:
+```
+  0 KARO ♦ VII
+  1 KARO ♦ VIII
+  2 KARO ♦ IX
+  3 KARO ♦ X
+  4 KARO ♦ Bube
+  5 KARO ♦ DAMA
+  6 KARO ♦ King
+  7 KARO ♦ AS
+  8 HERC ♥ VII
+  9 HERC ♥ VIII
+  10 HERC ♥ IX
+  11 HERC ♥ X
+  12 HERC ♥ Bube
+  13 HERC ♥ DAMA
+  14 HERC ♥ King
+  15 HERC ♥ AS
+  16 PIK ♠ VII
+  17 PIK ♠ VIII
+  18 PIK ♠ IX
+  19 PIK ♠ X
+  20 PIK ♠ Bube
+  21 PIK ♠ DAMA
+  22 PIK ♠ King
+  23 PIK ♠ AS
+  24 TREF ♣ VII
+  25 TREF ♣ VIII
+  26 TREF ♣ IX
+  27 TREF ♣ X
+  28 TREF ♣ Bube
+  29 TREF ♣ DAMA
+  30 TREF ♣ King
+  31 TREF ♣ AS
+```
 
 # Result
 ```

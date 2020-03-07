@@ -309,9 +309,12 @@ class Hand:
             trickValue = belot.trickValue(table, trumpSuit, lastTrick)
             print("> Stich ({}) made by {}".format(trickValue, trickWinner))
 
+            print(">>>>>>>>End of one Round<<<<<<<<<<<<<<<<<<<")
             if trickWinner in pairA:
                 self.tricksA.append(tuple(trick))
                 self.pointsA+=trickValue
+                print("TRICK:", trick)
+                print("trickValue", trickValue)
                 for playerA in pairA:
                     playerA.notifyTrick(trick, trickValue)
                 for playerB in pairB:
@@ -407,6 +410,7 @@ class Game:
             hand = Hand(self) # go to class hand(gameobject)
             newPointsA, newPointsB = hand.play()
 
+            print("One Game finished, Update the Policy for", "newPointsA", newPointsA, "newPointsB", newPointsB)
             for playerA in self.pairA:
                 playerA.notifyHand(newPointsA, newPointsB)
             for playerB in self.pairB:

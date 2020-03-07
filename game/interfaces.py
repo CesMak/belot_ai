@@ -140,6 +140,7 @@ class IPlayer(metaclass=ABCMeta):
     def notifyGame(self, pointsUs, pointsThem):
         '''
         The method reports the end of the game.
+        at the end of the game update only the biddingPolicy
         'pointsUs' are earned points of your own team and 'pointsThem' are earned points of the opposing team.
         '''
         pass

@@ -139,7 +139,7 @@ class PlayingPolicy(nn.Module):
 
         self.conv418 = nn.Conv2d(in_channels, out_channels, kernel_size=(3, 4), stride=1, dilation=(1, 8))
         self.conv881 = nn.Conv2d(in_channels, out_channels, kernel_size=(3, 8), stride=8, dilation=(1, 1))
-        self.classify = nn.Linear(104, len(belot.cards)) #  KARO, HERC, PIK, TREF, dalje
+        self.classify = nn.Linear(104, len(belot.cards))# len(belot.cards)=32 #  KARO, HERC, PIK, TREF, dalje
 
         # Optimizer
         self.optimizer = optim.SGD(self.parameters(), lr=1e-2, momentum=0.9)
@@ -150,6 +150,9 @@ class PlayingPolicy(nn.Module):
         # Keep track of actions and rewards during a single game (i.e. multiple hands)
         # This will be used to build a batch (torch.cat) passed to the criterion
         self.log_action_probabilities = list()
+
+        # Rewards stored for each round [-0.25, 0.2857142857142857, -0.3392857142857143, 0.375, 0.10714285714285714, -0.35714285714285715, 0.42857142857142855, 0.75]
+        # normalizedReward between -1 and 1
         self.rewards = list()
 
         self.to(_device)
@@ -157,9 +160,12 @@ class PlayingPolicy(nn.Module):
     def forward(self, state: np.ndarray, bidder, trump, legalCards):
         # State
         state = torch.Tensor(state)
+        # state.shape : torch.Size([4, 3, 32])
+        # state.dim   : 3
         if state.dim() == 3:
             state = state.unsqueeze(dim=0)
 
+        # no effect on cpu
         state = state.to(_device)
 
         # Bidder
@@ -197,25 +203,43 @@ class PlayingPolicy(nn.Module):
             mask[:, idx] = 1
         mask = mask.to(_device)
 
+        #print(state.shape) # torch.Size([1, 4, 3, 32])
+
         # state -> 4 (players), 3 (card states), 32 (cards)
         out418 = F.relu(self.conv418(state)) # -> (batch_size, out_channels, ?, ?)
         out881 = F.relu(self.conv881(state)) # -> (batch_size, out_channels, ?, ?)
 
+        # print("out418", out418.shape) out418 torch.Size([1, 8, 1, 8])
+        # print("out881", out881.shape) out881 torch.Size([1, 8, 1, 4])
+        # print("bidder", bidder.shape) bidder torch.Size([1, 4])
+        # print("trump",  trump.shape) trump torch.Size([1, 4])
+
         out = torch.cat((
-            out418.view(out418.size(0), -1),
+            out418.view(out418.size(0), -1), # convert from 1,8,1,8 to 1,64
             out881.view(out881.size(0), -1),
             bidder.view(bidder.size(0), -1),
             trump.view(trump.size(0), -1)
         ), dim=1) # -> (batch_size, ?)
 
+        # print(out418)       # tensor([[[[0.0000, ..(8Values). ]],  8 lines]]]]
+        # print(out418.shape) # torch.Size([1, 8, 1, 8])
+
+        # print(out418.size(0)) # 1
+        # print(out418.view(out418.size(0), -1).shape) # torch.Size([1, 64])
+        # print(out418.view(out418.size(0), -1))
+
+        # print(out.shape)  # torch.Size([1, 104])
 
         probs = F.softmax(self.classify(out), dim=1)
-        probs = probs * mask
+        # mask e.g.: 0. 0., 0., 0., 1., 0., 0., 1.,....
+        # mask. shape: 1x32,    probs.shape: 1x32
+        probs = probs * mask # probs.shape = 1x32
+        #print(probs)# e.g. tensor([[0.000, 0.0266, 0.0000,...]], grad_fn=<MulBackward0>)
 
         # Get action
-        distribution = Categorical(probs)
-        action_idx = distribution.sample()
-        log_action_probability = distribution.log_prob(action_idx)
+        distribution = Categorical(probs) # print(distribution) Categorical(probs: torch.Size([1, 32]))
+        action_idx = distribution.sample() # print(action_idx)  # tensor([22])
+        log_action_probability = distribution.log_prob(action_idx) # print(log_action_probability) # tensor([-1.9493], grad_fn=<SqueezeBackward1>)
 
         # Remember the log-probability
         self.log_action_probabilities.append(log_action_probability)
@@ -227,7 +251,9 @@ class PlayingPolicy(nn.Module):
 
     def updatePolicy(self):
         # Log-probabilites of performed actions
+        # Convert probabs to 8x1 tensor
         log_action_probabilities = torch.cat(self.log_action_probabilities, dim=0)
+        # log_action_probabilities         tensor([-1.5231e+00, -1.8974e+00, -1.1921e-07, -1.4120e+00, -1.2003e+00,
 
         # Rewards (do not reward if bidding was a must)
         discountedRewards = list()
@@ -245,6 +271,12 @@ class PlayingPolicy(nn.Module):
 
         # Optimization step
         self.optimizer.zero_grad()
+        
+        print("log_action_probabilities")
+        print(torch.round(log_action_probabilities * 10**2) / (10**2))
+        print("self.rewards")
+        print([round(x, 2) for x in self.rewards])
+
         loss = self.criterion(log_action_probabilities, rewards)
         loss.backward()
         self.optimizer.step()

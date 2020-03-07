@@ -91,10 +91,14 @@ class PlayerRL(IPlayer):
 
         # playing policy network
         playingState, trumpIndex, bidderIndex = self.playingState
-
+        print("RL-player.py playCard")
+        print("trumpIndex", trumpIndex, "bidderIndex", bidderIndex)
+        print("leagalCards", legalCards)
         action_idx, log_action_probability = self.playingPolicy(playingState, trumpIndex, bidderIndex, legalCards)
 
+
         cardToPlay = belot.cards[action_idx]
+        print("action_idx", action_idx, "which is", cardToPlay, "log_action_probability", log_action_probability)
 
         #transfer all TABLE maps to UNAVAILABLE
         for player in table:
@@ -169,6 +173,7 @@ class PlayerRL(IPlayer):
         state = np.zeros(
             shape=(len(belot.PlayerRole), len(cardStates), len(belot.cards))
         )
+        #print(state.shape) # 4, 3, 32
 
         otherPlayers = [
             belot.PlayerRole.TEAMMATE,
