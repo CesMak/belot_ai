@@ -44,3 +44,6 @@ class PlayerRandom(IPlayer):
 
     def declareBela(self, table):
         return choice([True, False])
+
+    def saveNetwork(self, number):
+        pass

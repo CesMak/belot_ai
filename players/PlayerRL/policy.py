@@ -6,6 +6,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.distributions import Categorical
 import numpy as np
+import stdout
 
 import game.belot as belot
 from game.belot import cards
@@ -142,7 +143,8 @@ class PlayingPolicy(nn.Module):
         self.classify = nn.Linear(104, len(belot.cards))# len(belot.cards)=32 #  KARO, HERC, PIK, TREF, dalje
 
         # Optimizer
-        self.optimizer = optim.SGD(self.parameters(), lr=1e-2, momentum=0.9)
+        # before:  lr=1e-2, momentum=0.9
+        self.optimizer = optim.SGD(self.parameters(), lr=1e-3, momentum=0.9)
 
         # Criterion
         self.criterion = PolicyGradientLoss()
@@ -158,6 +160,18 @@ class PlayingPolicy(nn.Module):
         self.to(_device)
 
     def forward(self, state: np.ndarray, bidder, trump, legalCards):
+        '''
+        In order to export an onnx model the inputs AND outputs of this function have to be TENSORS
+        See also here: https://discuss.pytorch.org/t/torch-onnx-export-fails/72418/2
+        '''
+        # datatype: <class 'numpy.ndarray'>, <enum 'Suit'>, <class 'int'>, <class 'list'>
+
+        # if datatype is tensor transform it:
+        if torch.is_tensor(bidder):
+            bidder = bidder.tolist()
+        if torch.is_tensor(trump):
+            trump = trump.tolist()
+
         # State
         state = torch.Tensor(state)
         # state.shape : torch.Size([4, 3, 32])
@@ -197,11 +211,14 @@ class PlayingPolicy(nn.Module):
         trump = torch.stack(trump_tensors, dim=0).to(_device)
 
         # Legal mask
-        mask = torch.zeros(1, len(belot.cards))
-        for legalCard in legalCards:
-            idx = belot.cards.index(legalCard)
-            mask[:, idx] = 1
-        mask = mask.to(_device)
+        if not torch.is_tensor(legalCards):
+            mask = torch.zeros(1, len(belot.cards))
+            for legalCard in legalCards:
+                idx = belot.cards.index(legalCard)
+                mask[:, idx] = 1
+            mask = mask.to(_device)
+        else:
+            mask = legalCards
 
         #print(state.shape) # torch.Size([1, 4, 3, 32])
 
@@ -238,13 +255,25 @@ class PlayingPolicy(nn.Module):
 
         # Get action
         distribution = Categorical(probs) # print(distribution) Categorical(probs: torch.Size([1, 32]))
+
+        print(probs)
+        print(distribution)
+        print(distribution.sample())
         action_idx = distribution.sample() # print(action_idx)  # tensor([22])
+        # In case it throws this error:
+        # Categorical(probs).sample() generates RuntimeError: invalid argument 2: invalid multinomial distribution
+        # the softmax had turned into a vector of lovely NaNs. then categorical fails with above error.
+        # The model itself is generating the nan because of the exploding gradients due to the learning rate.
+
         log_action_probability = distribution.log_prob(action_idx) # print(log_action_probability) # tensor([-1.9493], grad_fn=<SqueezeBackward1>)
 
         # Remember the log-probability
         self.log_action_probabilities.append(log_action_probability)
 
-        return action_idx.item(), log_action_probability
+        returned_tensor = torch.zeros(1, 2)
+        returned_tensor[:, 0] = action_idx.item()
+        returned_tensor[:, 1] = log_action_probability
+        return returned_tensor
 
     def feedback(self, reward: float):
         self.rewards.append(reward)
@@ -271,11 +300,13 @@ class PlayingPolicy(nn.Module):
 
         # Optimization step
         self.optimizer.zero_grad()
-        
+
+        #stdout.enable()
         print("log_action_probabilities")
         print(torch.round(log_action_probabilities * 10**2) / (10**2))
         print("self.rewards")
         print([round(x, 2) for x in self.rewards])
+        #stdout.disable()
 
         loss = self.criterion(log_action_probabilities, rewards)
         loss.backward()

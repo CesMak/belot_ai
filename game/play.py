@@ -397,6 +397,10 @@ class Game:
     def nextDealer(self):
         self.dealerIndex=(self.dealerIndex+1)%4
 
+    def saveNetworks(self, number):
+        for player in self.sitting:
+            player.saveNetwork(number)
+
     def play(self):
         winA=False
         winB=False

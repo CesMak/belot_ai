@@ -73,3 +73,6 @@ class PlayerKeyboard(IPlayer):
                 return True
             elif choice=="no":
                 return False
+
+    def saveNetwork(self, number):
+        pass

@@ -188,3 +188,10 @@ class IPlayer(metaclass=ABCMeta):
         - belot.PlayerRole.TEAMMATE -> teammate
         '''
         return False
+
+    @abstractmethod
+    def saveNetwork(self, number):
+        '''
+        Method to save Network, method only used in PlayerRL
+        '''
+        pass

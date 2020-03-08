@@ -33,13 +33,19 @@ Some docu in interfaces.py
   + The one who reaches 1001 points
 
 # TODO
+* What is stored as state (input vector???)
+* Test the saved networks! (without training)
+  * How many params does the networks have?
+* -> 2 Netzwerke müssen gespeichert werden!
 * wo wird das Netzwerk abgespeichert?
 * understand policy
+* share policy between 2 policy's
 
 # DONE
 * translate slowenisch/krotatisch to english
 * Learning Procedure
-
+* Export Network as onnx
+* Store networks after 1000 games!
 
 # Learning Procedure
 * train.py
@@ -76,6 +82,28 @@ out = torch.cat((
     bidder.view(bidder.size(0), -1), #1x4  (Player is bidder)
     trump.view(trump.size(0), -1)    #1x4  (Trump card)
 ), dim=1) # -> (batch_size, ?)
+
+Network:
+PlayingPolicy(
+  (conv418): Conv2d(4, 8, kernel_size=(3, 4), stride=(1, 1), dilation=(1, 8))
+  (conv881): Conv2d(4, 8, kernel_size=(3, 8), stride=(8, 8))
+  (classify): Linear(in_features=104, out_features=32, bias=True)
+  (criterion): PolicyGradientLoss()
+)
+
+Playing Policy Network parameters:
+for name, param in self.playingPolicy.named_parameters():
+    if param.requires_grad:
+        print (name, param.data.shape)
+
+conv418.weight torch.Size([8, 4, 3, 4])
+conv418.bias torch.Size([8])
+conv881.weight torch.Size([8, 4, 3, 8])
+conv881.bias torch.Size([8])
+classify.weight torch.Size([32, 104])
+classify.bias torch.Size([32])
+
+
 ```
 
 # Update playing Policy
@@ -123,6 +151,20 @@ out = torch.cat((
   29 TREF ♣ DAMA
   30 TREF ♣ King
   31 TREF ♣ AS
+```
+
+# States (what values are stored for RL)
+* schaue erst mal in knowledge[player]
+```
+localTable {<PlayerRole.LEFT_OPPONENT: 3>: KARO ♦ VIII}
+{<PlayerRole.LEFT_OPPONENT: 3>: KARO ♦ VIII}
+knowledge:
+{<CardState.UNKNOWN: 0>: {KARO ♦ VII, PIK ♠ VII, HERC ♥ VIII, TREF ♣ Bube, KARO ♦ AS, PIK ♠ VIII, HERC ♥ AS, TREF ♣ DAMA, KARO ♦ X, HERC ♥ Bube, PIK ♠ AS, HERC ♥ King, HERC ♥ X, TREF ♣ IX, TREF ♣ King, PIK ♠ DAMA, KARO ♦ Bube, TREF ♣ X, KARO ♦ King, TREF ♣ AS, HERC ♥ DAMA, PIK ♠ X, KARO ♦ DAMA}, <PlayerRole.LEFT_OPPONENT: 3>: {<CardState.AVAILABLE: 1>: set(), <CardState.UNAVAILABLE: 3>: set(), <CardState.TABLE: 2>: {KARO ♦ VIII}}, <PlayerRole.TEAMMATE: 2>: {<CardState.AVAILABLE: 1>: set(), <CardState.UNAVAILABLE: 3>: set(), <CardState.TABLE: 2>: set()}, <PlayerRole.RIGHT_OPPONENT: 1>: {<CardState.AVAILABLE: 1>: set(), <CardState.UNAVAILABLE: 3>: set(), <CardState.TABLE: 2>: set()}}
+```
+* see self.playingState
+```
+@property
+def playingState(self) -> np.ndarray:
 ```
 
 # Result

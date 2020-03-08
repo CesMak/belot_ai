@@ -5,6 +5,8 @@ from enum import Enum
 from .policy import BiddingPolicy
 from .policy import PlayingPolicy
 
+import torch # used for saving networks
+
 import numpy as np
 from math import pow
 
@@ -89,16 +91,25 @@ class PlayerRL(IPlayer):
             knowledge[player][CardState.TABLE].clear()
             knowledge[player][CardState.TABLE].add(card)
 
+            print("knowledge:")
+            print(knowledge)
+
         # playing policy network
         playingState, trumpIndex, bidderIndex = self.playingState
         print("RL-player.py playCard")
         print("trumpIndex", trumpIndex, "bidderIndex", bidderIndex)
         print("leagalCards", legalCards)
-        action_idx, log_action_probability = self.playingPolicy(playingState, trumpIndex, bidderIndex, legalCards)
-
+        torch_tensor = self.playingPolicy(playingState, trumpIndex, bidderIndex, legalCards)
+        action_idx   = int(torch_tensor[:, 0])
+        log_action_probability = torch_tensor[:, 1]
 
         cardToPlay = belot.cards[action_idx]
         print("action_idx", action_idx, "which is", cardToPlay, "log_action_probability", log_action_probability)
+
+        # print Network parameters and the name:
+        # for name, param in self.playingPolicy.named_parameters():
+        #     if param.requires_grad:
+        #         print (name, param.data.shape)
 
         #transfer all TABLE maps to UNAVAILABLE
         for player in table:
@@ -160,6 +171,23 @@ class PlayerRL(IPlayer):
 
     def eval(self):
         self.train = False
+
+    def saveNetwork(self, number):
+        base = "game/assets/network_models/"+number+"_"
+        for name, policy in zip([base+"_play_policy_", base+"_bid_policy"], [self.playingPolicy]): # , self.biddingPolicy
+            path = name+self.name+".pth"
+            print("I save your model path to:", path)
+            torch.save(policy.state_dict(), path)
+            path += ".onnx"
+            print("I save your model onnx to:", path)
+            playingState, trumpIndex, bidderIndex = self.playingState
+            # see in forward function:
+            # def forward(self, state: np.ndarray, bidder, trump, legalCards):
+            # and example here: https://pytorch.org/docs/stable/onnx.html
+            mask = torch.zeros(1, len(belot.cards))
+            mask[:, 3] = 1
+            input_nn = (torch.tensor(playingState, dtype=torch.float32), torch.tensor(bidderIndex, dtype=torch.int32), torch.tensor(trumpIndex), mask)
+            torch.onnx._export(policy, input_nn, path,  export_params=True)
 
     @property
     def playingState(self) -> np.ndarray:
